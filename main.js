@@ -2,14 +2,32 @@ const { Plugin, Notice } = require('obsidian');
 
 // This function does the actual cleanup work.
 // It takes the raw text of your note and returns the cleaned-up version.
+// Returns a "block type" label for a line, or null if it's plain text.
+// Lines with the same block type stay glued together (no blank line inserted
+// between them). This covers Obsidian callouts (>...) and list items.
+function getBlockType(line) {
+  const trimmed = line.trim();
+
+  if (trimmed === '') return null;
+
+  // Callout / blockquote lines start with ">"
+  if (trimmed.startsWith('>')) return 'callout';
+
+  // Bullet list items: -, *, or +
+  if (/^[-*+]\s/.test(trimmed)) return 'list';
+
+  // Numbered list items: "1.", "2)", etc.
+  if (/^\d+[.)]\s/.test(trimmed)) return 'list';
+
+  return 'text';
+}
+
 function cleanText(text) {
   // Step 1: collapse multiple spaces into a single space.
-  // (?<!\n) means "not right after a line break" so we don't touch indentation.
   let result = text.replace(/ {2,}/g, ' ');
 
-  // Step 2: make sure paragraphs have a blank line between them.
-  // Split into lines, then rebuild so any non-empty line followed by
-  // another non-empty line gets a blank line inserted between them.
+  // Step 2: make sure paragraphs have a blank line between them,
+  // but keep callouts and list items glued together as one block.
   const lines = result.split('\n');
   const rebuilt = [];
 
@@ -22,9 +40,15 @@ function cleanText(text) {
     const currentIsEmpty = currentLine.trim() === '';
     const nextIsEmpty = nextLine === undefined || nextLine.trim() === '';
 
-    // If current line has text, and the next line also has text
-    // (meaning there's no blank line between them), insert one.
-    if (!currentIsEmpty && !nextIsEmpty) {
+    if (currentIsEmpty || nextIsEmpty) continue;
+
+    const currentType = getBlockType(currentLine);
+    const nextType = getBlockType(nextLine);
+
+    // Only insert a blank line when moving from one block type to a
+    // different one (e.g. text -> callout, list -> text). Lines that
+    // share the same block type (callout->callout, list->list) stay together.
+    if (currentType !== nextType) {
       rebuilt.push('');
     }
   }
@@ -56,6 +80,7 @@ module.exports = class ParagraphLinterPlugin extends Plugin {
     this.addCommand({
       id: 'clean-paragraphs',
       name: 'Clean up paragraphs (add spacing, remove extra spaces)',
+      icon: 'pencil',
       callback: runCleanup,
     });
 
