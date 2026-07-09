@@ -1,0 +1,9 @@
+{
+  "id": "paragraph-linter",
+  "name": "Paragraph Linter",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Adds blank lines between paragraphs and removes extra spaces, on save or on demand.",
+  "author": "Quincy",
+  "isDesktopOnly": false
+}
