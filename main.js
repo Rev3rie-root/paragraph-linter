@@ -22,12 +22,21 @@ function getBlockType(line) {
   return 'text';
 }
 
+// Returns true if this line looks like it FINISHES a paragraph
+// (ends in sentence-ending punctuation), vs. being a mid-sentence
+// line wrap that should stay glued to the next line.
+function endsAParagraph(line) {
+  const trimmed = line.trim();
+  if (trimmed === '') return false;
+  return /[.!?"'”’)\]]$/.test(trimmed);
+}
+
 function cleanText(text) {
   // Step 1: collapse multiple spaces into a single space.
   let result = text.replace(/ {2,}/g, ' ');
 
   // Step 2: make sure paragraphs have a blank line between them,
-  // but keep callouts and list items glued together as one block.
+  // but keep callouts, lists, and mid-sentence line-wraps glued together.
   const lines = result.split('\n');
   const rebuilt = [];
 
@@ -45,17 +54,22 @@ function cleanText(text) {
     const currentType = getBlockType(currentLine);
     const nextType = getBlockType(nextLine);
 
-    // Only insert a blank line when moving from one block type to a
-    // different one (e.g. text -> callout, list -> text). Lines that
-    // share the same block type (callout->callout, list->list) stay together.
     if (currentType !== nextType) {
+      // Switching block types (e.g. text -> list) always gets a blank line.
       rebuilt.push('');
+    } else if (currentType === 'text') {
+      // Same type and both plain text: only split if the current line
+      // actually finished a paragraph (ends in punctuation). Otherwise
+      // it's just a mid-sentence line wrap, so leave it glued.
+      if (endsAParagraph(currentLine)) {
+        rebuilt.push('');
+      }
     }
+    // callout/list lines of the same type stay glued together either way
   }
 
   return rebuilt.join('\n');
 }
-
 module.exports = class ParagraphLinterPlugin extends Plugin {
   async onload() {
     // This runs the cleanup and writes it back into the currently open note.
